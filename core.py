@@ -34,6 +34,28 @@ COMMENTS_HEADER = (
 )
 COMMENT_CHAR_BUDGET = 100_000
 
+# YouTube now requires a "GVS PO token" before it will serve the adaptive
+# (separate video + audio) streams that every quality above 360p uses. yt-dlp
+# cannot mint one on its own, so without a provider the media URLs come back
+# 403 Forbidden even though extraction succeeds. install.bat sets this folder
+# up; if it is missing we still run, just with 360p as the likely ceiling.
+POT_PROVIDER_HOME = Path(__file__).with_name("potprovider")
+
+FORBIDDEN_HELP = (
+    "YouTube refused the media download (HTTP 403).\n\n"
+    "This is YouTube blocking the request, not a bug in the app. The usual "
+    "causes, most likely first:\n\n"
+    "1. Too many requests from your connection in a short time. YouTube then "
+    "rejects every stream, even 360p. It clears by itself — wait 30-60 "
+    "minutes and try again.\n\n"
+    "2. A missing PO token. Rerun install.bat so the token provider is set "
+    "up, then restart the app.\n\n"
+    "3. YouTube's SABR-only rollout for this video, which yt-dlp cannot "
+    "download yet. Nothing in this app can work around that one.\n\n"
+    "If it persists past an hour, update yt-dlp:\n"
+    '    .venv\\Scripts\\python.exe -m pip install -U "yt-dlp[default]"'
+)
+
 # Only the first ~100k characters ever reach the clipboard, so there is no point
 # paging through the 2 million comments on a viral video. This keeps the fetch
 # to seconds instead of hours while still overfilling the character budget.
@@ -62,6 +84,14 @@ def yt_timecode(seconds: float) -> str:
     minutes = (total % 3600) // 60
     secs = total % 60
     return f"{hours}:{minutes:02}:{secs:02}" if hours else f"{minutes}:{secs:02}"
+
+
+def pot_provider_ready() -> bool:
+    """True when the PO token provider has been downloaded and npm-installed."""
+    return (
+        (POT_PROVIDER_HOME / "src" / "generate_once.ts").is_file()
+        and (POT_PROVIDER_HOME / "node_modules").is_dir()
+    )
 
 
 def find_tool(name: str) -> str | None:
@@ -332,6 +362,16 @@ def download_media(
         "js_runtimes": {"deno": {"path": deno_path}},
     }
 
+    if pot_provider_ready():
+        ydl_opts["extractor_args"] = {
+            "youtubepot-bgutilscript": {"server_home": [str(POT_PROVIDER_HOME)]},
+        }
+    else:
+        on_log(
+            "Note: the PO token provider is not installed, so YouTube will "
+            "likely refuse anything above 360p. Rerun install.bat to add it."
+        )
+
     if cookie_browser and cookie_browser != "none":
         ydl_opts["cookiesfrombrowser"] = (cookie_browser,)
 
@@ -354,7 +394,12 @@ def download_media(
                 "preferedformat": "mp4",
             }]
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+    except yt_dlp.utils.DownloadError as error:
+        if "403" in str(error):
+            raise RuntimeError(FORBIDDEN_HELP) from error
+        raise
 
     return info
