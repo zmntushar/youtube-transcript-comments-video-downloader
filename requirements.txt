@@ -1,6 +1,5 @@
 customtkinter>=5.2.2
-yt-dlp[default]>=2025.1.1
+yt-dlp[default]>=2026.8.19
 youtube-transcript-api>=1.0.0
 pyperclip>=1.8.2
 truststore>=0.9.0
-bgutil-ytdlp-pot-provider>=1.3.1

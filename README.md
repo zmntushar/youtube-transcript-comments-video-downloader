@@ -8,13 +8,12 @@ link. Built from `YouTube_Transcript_Comments_Video_Audio_Downloader.ipynb`.
 ## Setup
 
 Double-click **`install.bat`** once. It creates a private Python environment in
-`.venv`, installs the Python packages, installs FFmpeg and Deno via winget, and
-sets up the PO token provider (see below).
+`.venv`, installs the Python packages, and installs FFmpeg and Deno via winget.
 
 Then double-click **`run.bat`** to start the app.
 
-Node.js is needed for the PO token provider. If it is missing, install it with
-`winget install OpenJS.NodeJS` and rerun `install.bat`.
+Rerun `install.bat` any time downloads start failing — it updates yt-dlp, which
+is the usual fix.
 
 ## Using it
 
@@ -51,39 +50,31 @@ is remembered in `settings.json`.
 | `app.py` | The window, tabs, and widgets |
 | `core.py` | Transcript, comment, and download logic (no UI) |
 | `requirements.txt` | Python dependencies |
-| `potprovider/` | PO token provider, fetched by `install.bat` (not in git) |
 
 ## Troubleshooting
 
 **"FFmpeg was not found" / "Deno was not found"** — rerun `install.bat`. If it
 still fails, sign out of Windows and back in so the new PATH entries register.
 
-**HTTP 403 on a download** — YouTube is refusing the stream, which is not a bug
-in the app. In order of likelihood:
+**HTTP 403 on a download** — nearly always means yt-dlp has fallen behind a
+change on YouTube's side. YouTube reworks how it serves video every few weeks;
+until yt-dlp catches up, downloads fail with 403 even though the link is fine.
 
-1. **Rate limiting.** Too many requests from your connection in a short window
-   makes YouTube reject *every* stream, including 360p. It clears on its own;
-   wait 30–60 minutes.
-2. **Missing PO token.** YouTube requires a "GVS PO token" before it will serve
-   the adaptive streams that every quality above 360p uses, and yt-dlp cannot
-   mint one by itself. `install.bat` sets up the
-   [bgutil provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider)
-   for this. If `potprovider/node_modules` is missing, rerun `install.bat`.
-3. **SABR-only rollout.** For some videos YouTube now serves only its SABR
-   protocol, which yt-dlp cannot download
-   ([issue #12482](https://github.com/yt-dlp/yt-dlp/issues/12482)). Nothing in
-   this app works around that.
+**Fix: close the app and run `install.bat`.** It upgrades yt-dlp to the latest
+release, which is usually all it takes. This was the entire cause of the 403s
+seen on 2026-08-19: yt-dlp 2026.7.4 failed on every video and every quality,
+and 2026.8.19 fixed it with no other change.
 
-If it outlasts an hour, update yt-dlp:
-
-```bash
-.venv\Scripts\python.exe -m pip install -U "yt-dlp[default]"
-```
+It is worth updating *first*, before changing any setting in the app. If it
+still fails immediately after updating, wait an hour in case your connection is
+being rate limited, try a second video to see whether it is specific to one,
+and check [the yt-dlp issues](https://github.com/yt-dlp/yt-dlp/issues) for an
+open report.
 
 **The Cookies dropdown does nothing on Chrome or Edge** — Chromium's app-bound
 encryption blocks yt-dlp from reading their cookie stores on Windows
 ([issue #10927](https://github.com/yt-dlp/yt-dlp/issues/10927)). Only Firefox
-cookies are usable. The PO token provider is the real fix, not cookies.
+cookies are usable. For a 403, update yt-dlp instead — cookies are not the fix.
 
 **`CERTIFICATE_VERIFY_FAILED`** — antivirus and corporate proxies re-sign HTTPS
 traffic with their own root certificate. `core.py` handles this by routing

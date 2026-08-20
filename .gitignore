@@ -6,5 +6,3 @@ error.log
 .ipynb_checkpoints/
 .claude/settings.local.json
 
-# Third-party PO token provider, fetched by install.bat (GPL-3.0, not vendored)
-potprovider/
